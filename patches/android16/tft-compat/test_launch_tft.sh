@@ -25,9 +25,14 @@ printf '%s\n' \
 cmp "$test_dir/expected" "$TFT_TEST_LOG"
 
 : >"$TFT_TEST_LOG"
+"$here/launch-tft.sh" --quit
+printf '%s\n' 'session stop' >"$test_dir/expected"
+cmp "$test_dir/expected" "$TFT_TEST_LOG"
+
+: >"$TFT_TEST_LOG"
 if "$here/launch-tft.sh" com.example.other >/dev/null 2>&1; then
     echo 'unknown package was accepted' >&2
     exit 1
 fi
 [[ ! -s $TFT_TEST_LOG ]] || { echo 'unknown package was launched' >&2; exit 1; }
-echo 'launcher selects only supported TFT packages'
+echo 'launcher selects TFT packages and can quit Waydroid'

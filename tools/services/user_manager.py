@@ -121,7 +121,8 @@ def start(args, session, unlocked_cb=None):
 
         desktop_file.set_string("Desktop Entry", "Type", "Application")
         desktop_file.set_string("Desktop Entry", "Name", appInfo["name"])
-        if packageName in TFT_PACKAGES and TFT_LAUNCHER.is_file():
+        tft_launcher_available = packageName in TFT_PACKAGES and TFT_LAUNCHER.is_file()
+        if tft_launcher_available:
             desktop_file.set_string("Desktop Entry", "Exec", f"{TFT_LAUNCHER} {packageName}")
             glib_key_file_prepend_string_list(
                 desktop_file, "Desktop Entry", "Categories", ["Game", "StrategyGame"])
@@ -133,6 +134,10 @@ def start(args, session, unlocked_cb=None):
         glib_key_file_prepend_string_list(desktop_file, "Desktop Entry", "Categories", ["X-WayDroid-App"])
         desktop_file.set_string_list("Desktop Entry", "X-Purism-FormFactor", ["Workstation", "Mobile"])
         glib_key_file_prepend_string_list(desktop_file, "Desktop Entry", "Actions", ["app-settings"])
+        if tft_launcher_available:
+            glib_key_file_prepend_string_list(desktop_file, "Desktop Entry", "Actions", ["quit-tft"])
+            desktop_file.set_string("Desktop Action quit-tft", "Name", "Thoát TFT và Waydroid")
+            desktop_file.set_string("Desktop Action quit-tft", "Exec", f"{TFT_LAUNCHER} --quit")
         if packageName in system_apps and not glib_key_file_has_value(desktop_file, "Desktop Entry", "NoDisplay"):
             desktop_file.set_boolean("Desktop Entry", "NoDisplay", True)
 

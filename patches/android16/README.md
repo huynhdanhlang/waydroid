@@ -83,6 +83,13 @@ both packages. The Vietnam package was installed from Play with
 The original XAPK was moved to Trash by the user. The user later uninstalled
 the original Android package, which removed its Android app data.
 
+Closing the Waydroid window leaves its Android session and TFT process
+running. The generated TFT desktop entry includes a **Thoát TFT và Waydroid**
+action (right-click the launcher) that calls `tft-waydroid --quit`. This stops
+the Waydroid session and its apps without deleting Play Store game data. A
+clean stop/restart/stop cycle was verified. The window's X button keeps
+Waydroid's normal hide-window behavior.
+
 ## 4K display and game render size
 
 The Waydroid display is 3840×2160, but TFT's selected Android device profile
