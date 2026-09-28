@@ -9,6 +9,7 @@ import signal
 import stat
 import sys
 import time
+import tempfile
 import platform
 import gbinder
 import tools.config
@@ -76,7 +77,8 @@ def generate_nodes_lxc_config(args):
     make_entry("/dev/" + args.VNDBINDER_DRIVER, "dev/vndbinder", check=False)
     make_entry("/dev/" + args.HWBINDER_DRIVER, "dev/hwbinder", check=False)
 
-    if args.vendor_type != "MAINLINE":
+    vendor_type = getattr(args, "vendor_type", None) or tools.config.load(args)["waydroid"]["vendor_type"]
+    if vendor_type != "MAINLINE":
         if not make_entry("/dev/hwbinder", "dev/host_hwbinder"):
             raise OSError('Binder node "hwbinder" of host not found')
         make_entry("/vendor", "vendor_extra", options="rbind,optional 0 0")
@@ -173,15 +175,26 @@ def set_lxc_config(args):
         command = ["sed", "-i", "-E", "/lxc.aa_profile|lxc.apparmor.profile/ s/unconfined/{}/g".format(LXC_APPARMOR_PROFILE), lxc_path + "/config"]
         tools.helpers.run.user(args, command)
 
-    nodes = generate_nodes_lxc_config(args)
-    config_nodes_tmp_path = args.work + "/config_nodes"
-    with open(config_nodes_tmp_path, "w") as f:
-        f.writelines(node + "\n" for node in nodes)
-    command = ["mv", config_nodes_tmp_path, lxc_path]
-    tools.helpers.run.user(args, command)
+    refresh_nodes_lxc_config(args)
 
     # Create empty file
     Path(os.path.join(lxc_path, "config_session")).touch()
+
+def refresh_nodes_lxc_config(args):
+    """Bind the render node selected for this boot, not the one from init."""
+    lxc_path = os.path.join(tools.config.defaults["lxc"], "waydroid")
+    nodes = generate_nodes_lxc_config(args)
+    with tempfile.NamedTemporaryFile(mode="w", dir=lxc_path, prefix="config_nodes.",
+                                     delete=False) as f:
+        temp_path = f.name
+        try:
+            f.writelines(node + "\n" for node in nodes)
+            f.flush()
+            os.fsync(f.fileno())
+            os.replace(temp_path, os.path.join(lxc_path, "config_nodes"))
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
 
 def generate_session_lxc_config(args, session):
     nodes = []

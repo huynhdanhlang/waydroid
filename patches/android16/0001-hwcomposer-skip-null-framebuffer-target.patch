@@ -1,0 +1,125 @@
+diff --git a/hwcomposer/hwcomposer.cpp b/hwcomposer/hwcomposer.cpp
+index e5f4d70..4aa3651 100644
+--- a/hwcomposer/hwcomposer.cpp
++++ b/hwcomposer/hwcomposer.cpp
+@@ -103,6 +103,11 @@ namespace {
+ 
+     buffer *get_wl_buffer(waydroid_hwc_composer_device_1 *pdev, hwc_layer_1_t *layer, size_t pos) {
+         const auto& gralloc_handler = pdev->gralloc_handler;
++        if (!layer->handle) {
++            // SurfaceFlinger may submit a client target before a buffer exists.
++            ALOGW("get_wl_buffer: skipping pos=%zu, layer has no buffer handle", pos);
++            return nullptr;
++        }
+         auto metadata = gralloc_handler.get_buffer_metadata(pdev->display, layer, pos);
+         buffer *buf = find_cached_buffer(pdev, metadata, layer->handle);
+ 
+diff --git a/hwcomposer/modes/waydroid_mode_impl.h b/hwcomposer/modes/waydroid_mode_impl.h
+index 000b388..3e91b73 100644
+--- a/hwcomposer/modes/waydroid_mode_impl.h
++++ b/hwcomposer/modes/waydroid_mode_impl.h
+@@ -129,6 +129,23 @@ class non_compositing_window_mode : public virtual waydroid_mode {
+         return static_cast<T *>(this);
+     }
+ 
++    // Rate limited: the first few, then one in every 300 (~5s at 60Hz).
++    static void log_frame(const char *why, hwc_display_contents_1_t *contents) {
++        static unsigned count = 0;
++        if (count < 5 || count % 300 == 0) {
++            ALOGW("%s: numHwLayers=%zu flags=0x%08x", why, contents->numHwLayers, contents->flags);
++            for (size_t i = 0; i < contents->numHwLayers; ++i) {
++                const auto& l = contents->hwLayers[i];
++                ALOGW("  layer[%zu] compositionType=%" PRId32 " flags=0x%08" PRIx32
++                      " handle=%p acquireFenceFd=%d displayFrame=%d,%d-%d,%d",
++                      i, l.compositionType, l.flags, l.handle, l.acquireFenceFd,
++                      l.displayFrame.left, l.displayFrame.top,
++                      l.displayFrame.right, l.displayFrame.bottom);
++            }
++        }
++        ++count;
++    }
++
+   public:
+     int prepare(hwc_layer_1 *hwc_layer, size_t) override {
+         hwc_layer->compositionType = HWC_FRAMEBUFFER;
+@@ -136,6 +153,12 @@ class non_compositing_window_mode : public virtual waydroid_mode {
+     }
+ 
+     int setup_set(waydroid_hwc_composer_device_1 *, hwc_display_contents_1_t *contents) override {
++        // Don't keep indices from the previous frame around,
++        // they point into a different hwLayers[].
++        m_draw_framebuffer_at = UNSET_VALUE;
++        m_framebuffer_target = nullptr;
++        m_framebuffer_target_index = UNSET_VALUE;
++
+         for (size_t i = 0; i < contents->numHwLayers; ++i) {
+             auto& layer = contents->hwLayers[i];
+             if (m_draw_framebuffer_at == UNSET_VALUE
+@@ -148,6 +171,18 @@ class non_compositing_window_mode : public virtual waydroid_mode {
+                 break;
+             }
+         }
++
++        /* On its first present SurfaceFlinger has no client target buffer
++         * yet, so the FRAMEBUFFER_TARGET layer comes with a null handle.
++         * There is nothing to draw then. */
++        if (m_draw_framebuffer_at != UNSET_VALUE && (!m_framebuffer_target || !m_framebuffer_target->handle)) {
++            log_frame(m_framebuffer_target ? "framebuffer target has no handle"
++                                           : "no framebuffer target in frame",
++                      contents);
++            m_draw_framebuffer_at = UNSET_VALUE;
++            m_framebuffer_target = nullptr;
++            m_framebuffer_target_index = UNSET_VALUE;
++        }
+         return 0;
+     }
+     int handle_layer(waydroid_hwc_composer_device_1 *pdev, hwc_layer_1 *hwc_layer, size_t i) override {
+@@ -158,7 +193,6 @@ class non_compositing_window_mode : public virtual waydroid_mode {
+          */
+         int res = 0;
+         if (i == m_draw_framebuffer_at) {
+-            assert(m_framebuffer_target->handle);
+             window *window = derived()->get_window(pdev);
+ 
+             res = apply_hwc_layer_to_window(pdev, m_framebuffer_target, m_framebuffer_target_index, window);
+
+diff --git a/hwcomposer/wayland-hwc.cpp b/hwcomposer/wayland-hwc.cpp
+--- a/hwcomposer/wayland-hwc.cpp
++++ b/hwcomposer/wayland-hwc.cpp
+@@ -215,5 +215,10 @@ xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *,
+ 
++    // Focus/state changes can send configure again with the same dimensions.
++    if (window->configured &&
++        display->req_width == width && display->req_height == height)
++        return;
++
+     display->req_width = width;
+     display->req_height = height;
+ 
+     if (display->height && display->width) {
+@@ -860,11 +860,14 @@ static const struct wl_keyboard_listener keyboard_listener = {
+ static void gesture_swipe_begin(struct display* display, uint32_t id);
+ static void gesture_swipe_update(struct display* display, uint32_t axis, int value);
+ static void gesture_swipe_end(struct display* display);
+ 
++static void pointer_handle_motion(void *data, struct wl_pointer *,
++                                  uint32_t, wl_fixed_t sx, wl_fixed_t sy);
++
+ static void
+-pointer_handle_enter(void *data, struct wl_pointer *,
++pointer_handle_enter(void *data, struct wl_pointer *pointer,
+                      uint32_t serial, struct wl_surface *surface,
+-                     wl_fixed_t, wl_fixed_t)
++                     wl_fixed_t sx, wl_fixed_t sy)
+ {
+     if (!surface) {
+         // The surface this enter event corresponds to was already destroyed
+@@ -875,6 +878,8 @@ pointer_handle_enter(void *data, struct wl_pointer *,
+     display->pointer_surface = surface;
+     display->pointer_enter_serial = serial;
+     display->cursor_handler->on_cursor_enter(display);
++    // A click without movement still needs an initial ABS_X/ABS_Y position.
++    pointer_handle_motion(data, pointer, 0, sx, sy);
+ }
+ 
+ static void

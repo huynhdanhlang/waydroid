@@ -11,6 +11,11 @@ from tools.interfaces import IPlatform
 from gi.repository import GLib
 
 stopping = False
+TFT_LAUNCHER = Path("/usr/local/bin/tft-waydroid")
+TFT_PACKAGES = {
+    "com.riotgames.league.teamfighttactics",
+    "com.riotgames.league.teamfighttacticsvn",
+}
 
 
 def start(args, session, unlocked_cb=None):
@@ -116,7 +121,14 @@ def start(args, session, unlocked_cb=None):
 
         desktop_file.set_string("Desktop Entry", "Type", "Application")
         desktop_file.set_string("Desktop Entry", "Name", appInfo["name"])
-        desktop_file.set_string("Desktop Entry", "Exec", f"waydroid app launch {packageName}")
+        if packageName in TFT_PACKAGES and TFT_LAUNCHER.is_file():
+            desktop_file.set_string("Desktop Entry", "Exec", f"{TFT_LAUNCHER} {packageName}")
+            glib_key_file_prepend_string_list(
+                desktop_file, "Desktop Entry", "Categories", ["Game", "StrategyGame"])
+        else:
+            if packageName in TFT_PACKAGES:
+                logging.warning("TFT launcher %s is absent; using Waydroid's default launcher", TFT_LAUNCHER)
+            desktop_file.set_string("Desktop Entry", "Exec", f"waydroid app launch {packageName}")
         desktop_file.set_string("Desktop Entry", "Icon", str(waydroid_data_icons_dir / f"{packageName}.png"))
         glib_key_file_prepend_string_list(desktop_file, "Desktop Entry", "Categories", ["X-WayDroid-App"])
         desktop_file.set_string_list("Desktop Entry", "X-Purism-FormFactor", ["Workstation", "Mobile"])

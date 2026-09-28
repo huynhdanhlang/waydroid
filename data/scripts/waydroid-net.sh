@@ -32,9 +32,17 @@ LXC_IPV6_MASK=""
 LXC_IPV6_NETWORK=""
 LXC_IPV6_NAT="false"
 
-IPTABLES_BIN="$(command -v iptables-legacy)"
+if [ -n "${WAYDROID_IPTABLES_BIN:-}" ]; then
+    IPTABLES_BIN="$(command -v "$WAYDROID_IPTABLES_BIN")"
+else
+    IPTABLES_BIN="$(command -v iptables-legacy)"
+    if [ ! -n "$IPTABLES_BIN" ]; then
+        IPTABLES_BIN="$(command -v iptables)"
+    fi
+fi
 if [ ! -n "$IPTABLES_BIN" ]; then
-    IPTABLES_BIN="$(command -v iptables)"
+    echo "No usable iptables backend found" >&2
+    exit 1
 fi
 IP6TABLES_BIN="$(command -v ip6tables-legacy)"
 if [ ! -n "$IP6TABLES_BIN" ]; then
@@ -90,10 +98,14 @@ start_iptables() {
     fi
     $IPTABLES_BIN $use_iptables_lock -I INPUT -i ${LXC_BRIDGE} -p udp --dport 67 -j ACCEPT
     $IPTABLES_BIN $use_iptables_lock -I INPUT -i ${LXC_BRIDGE} -p tcp --dport 67 -j ACCEPT
-    $IPTABLES_BIN $use_iptables_lock -I INPUT -i ${LXC_BRIDGE} -p udp --dport 53 -j ACCEPT
-    $IPTABLES_BIN $use_iptables_lock -I INPUT -i ${LXC_BRIDGE} -p tcp --dport 53 -j ACCEPT
-    $IPTABLES_BIN $use_iptables_lock -I FORWARD -i ${LXC_BRIDGE} -j ACCEPT
-    $IPTABLES_BIN $use_iptables_lock -I FORWARD -o ${LXC_BRIDGE} -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -I INPUT -i ${LXC_BRIDGE} -d ${LXC_ADDR} -p udp --dport 53 -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -I INPUT -i ${LXC_BRIDGE} -d ${LXC_ADDR} -p tcp --dport 53 -j ACCEPT
+    # A host firewall may filter local dnsmasq replies in OUTPUT before
+    # they reach Waydroid. Keep the exception on the bridge and DNS port.
+    $IPTABLES_BIN $use_iptables_lock -I OUTPUT -o ${LXC_BRIDGE} -s ${LXC_ADDR} -d ${LXC_NETWORK} -p udp --sport 53 -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -I OUTPUT -o ${LXC_BRIDGE} -s ${LXC_ADDR} -d ${LXC_NETWORK} -p tcp --sport 53 -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -I FORWARD -i ${LXC_BRIDGE} -s ${LXC_NETWORK} -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -I FORWARD -o ${LXC_BRIDGE} -d ${LXC_NETWORK} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
     $IPTABLES_BIN $use_iptables_lock -t nat -A POSTROUTING -s ${LXC_NETWORK} ! -d ${LXC_NETWORK} -j MASQUERADE
     $IPTABLES_BIN $use_iptables_lock -t mangle -A POSTROUTING -o ${LXC_BRIDGE} -p udp -m udp --dport 68 -j CHECKSUM --checksum-fill
 }
@@ -212,10 +224,12 @@ start() {
 stop_iptables() {
     $IPTABLES_BIN $use_iptables_lock -D INPUT -i ${LXC_BRIDGE} -p udp --dport 67 -j ACCEPT
     $IPTABLES_BIN $use_iptables_lock -D INPUT -i ${LXC_BRIDGE} -p tcp --dport 67 -j ACCEPT
-    $IPTABLES_BIN $use_iptables_lock -D INPUT -i ${LXC_BRIDGE} -p udp --dport 53 -j ACCEPT
-    $IPTABLES_BIN $use_iptables_lock -D INPUT -i ${LXC_BRIDGE} -p tcp --dport 53 -j ACCEPT
-    $IPTABLES_BIN $use_iptables_lock -D FORWARD -i ${LXC_BRIDGE} -j ACCEPT
-    $IPTABLES_BIN $use_iptables_lock -D FORWARD -o ${LXC_BRIDGE} -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -D INPUT -i ${LXC_BRIDGE} -d ${LXC_ADDR} -p udp --dport 53 -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -D INPUT -i ${LXC_BRIDGE} -d ${LXC_ADDR} -p tcp --dport 53 -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -D OUTPUT -o ${LXC_BRIDGE} -s ${LXC_ADDR} -d ${LXC_NETWORK} -p udp --sport 53 -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -D OUTPUT -o ${LXC_BRIDGE} -s ${LXC_ADDR} -d ${LXC_NETWORK} -p tcp --sport 53 -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -D FORWARD -i ${LXC_BRIDGE} -s ${LXC_NETWORK} -j ACCEPT
+    $IPTABLES_BIN $use_iptables_lock -D FORWARD -o ${LXC_BRIDGE} -d ${LXC_NETWORK} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
     $IPTABLES_BIN $use_iptables_lock -t nat -D POSTROUTING -s ${LXC_NETWORK} ! -d ${LXC_NETWORK} -j MASQUERADE
     $IPTABLES_BIN $use_iptables_lock -t mangle -D POSTROUTING -o ${LXC_BRIDGE} -p udp -m udp --dport 68 -j CHECKSUM --checksum-fill
     if [ "$LXC_IPV6_NAT" = "true" ]; then

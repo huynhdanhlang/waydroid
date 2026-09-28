@@ -202,6 +202,7 @@ def do_start(args, session):
     set_permissions(args)
 
     # Create session-specific LXC config file
+    helpers.lxc.refresh_nodes_lxc_config(args)
     helpers.lxc.generate_session_lxc_config(args, session)
     # Backwards compatibility
     with open(tools.config.defaults["lxc"] + "/waydroid/config") as f:

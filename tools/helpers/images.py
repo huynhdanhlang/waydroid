@@ -134,6 +134,18 @@ def make_prop(args, cfg, full_props_path):
     if not props:
         raise RuntimeError("waydroid_base.prop is broken!!?")
 
+    # Render node numbers can change after a host reboot. The base property
+    # was generated at init time, so resolve the current supported GPU here.
+    gbm_props = [i for i, prop in enumerate(props) if prop.startswith("gralloc.gbm.device=")]
+    if gbm_props:
+        if len(gbm_props) != 1:
+            raise RuntimeError("Expected exactly one gralloc.gbm.device property")
+        render, _ = helpers.gpu.getDriNode(args)
+        if not render:
+            raise RuntimeError("No supported render device for GBM graphics")
+        props[gbm_props[0]] = "gralloc.gbm.device=" + render
+        logging.info("Using current Waydroid render device %s", render)
+
     def add_prop(key, cfg_key):
         value = cfg[cfg_key]
         if value != "None":

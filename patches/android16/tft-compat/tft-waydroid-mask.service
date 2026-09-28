@@ -1,0 +1,14 @@
+[Unit]
+Description=Mask TFT's incompatible proc syscall probe in Waydroid
+Requires=waydroid-container.service
+After=waydroid-container.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/tft-waydroid-mask-watcher
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=no
+
+[Install]
+WantedBy=multi-user.target
