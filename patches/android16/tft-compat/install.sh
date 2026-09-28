@@ -110,6 +110,8 @@ install -D -o root -g root -m 755 "$build_dir/tft-waydroid-mask-watcher" \
     /usr/local/libexec/tft-waydroid-mask-watcher
 install -D -o root -g root -m 755 "$here/launch-tft.sh" \
     /usr/local/bin/tft-waydroid
+install -D -o root -g root -m 755 "$here/tft-resolution.sh" \
+    /usr/local/bin/tft-waydroid-resolution
 install -D -o root -g root -m 644 "$here/tft-waydroid-mask.service" \
     /etc/systemd/system/tft-waydroid-mask.service
 

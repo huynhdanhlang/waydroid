@@ -80,8 +80,35 @@ package; each Waydroid-generated desktop entry passes its package explicitly
 after the installer runs. The bridge watcher and touch shim also recognize
 both packages. The Vietnam package was installed from Play with
 `installerPackageName=com.android.vending`; it stores its assets separately.
-The original XAPK file remains on the host. The user later uninstalled the
-original Android package, which removed its Android app data.
+The original XAPK was moved to Trash by the user. The user later uninstalled
+the original Android package, which removed its Android app data.
+
+## 4K display and game render size
+
+The Waydroid display is 3840×2160, but TFT's selected Android device profile
+sets Unreal's `r.MobileContentScaleFactor=1.0`. SurfaceFlinger showed that the
+game's SurfaceView supplied 1280×720 pixels and was enlarged 3×. The in-game
+“Ultra” graphics option did not change that buffer size. Epic's
+[mobile resolution documentation](https://dev.epicgames.com/documentation/unreal-engine/performance-guidelines-for-mobile-devices-in-unreal-engine)
+describes 1.0 as 720p on Android.
+
+TFT's APK reads `UECommandLine.txt` from its private app data. The following
+helper writes only that external command-line file, preserving the signed APK
+and downloaded assets. It refuses to overwrite an unrelated command line.
+The setting persists across Waydroid restarts and takes effect when TFT is
+launched again:
+
+```sh
+sudo tft-waydroid-resolution 2k
+# Optional: 4k or stock in place of 2k, then restart only TFT.
+```
+
+On this Intel UHD 770 host, SurfaceFlinger measured 2560×1440 rendering at
+approximately 60 FPS in the store and 3840×2160 at approximately 33 FPS
+during startup. These are different scenes, so they are a responsiveness
+check rather than a controlled benchmark. The 2K setting is the chosen
+balance for smoother input. The 4K setting remains available for later
+testing, but the helper does not change the resolution during installation.
 
 ## Reinstall on the same image
 
