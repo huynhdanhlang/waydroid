@@ -5,6 +5,48 @@ TFT 18.3, x86_64 Waydroid, Intel graphics, KDE Wayland, and the Android 16
 WayDroid-ATV vendor image dated 2026-07-17. It changes Waydroid's host code
 and Android system overlay; it does **not** edit the TFT package or game data.
 
+## One-command setup on CachyOS
+
+From a checkout of this branch, while logged into a Wayland desktop, run:
+
+```sh
+bash patches/android16/setup.sh
+```
+
+On a fresh CachyOS computer, first clone this fork; then run that one setup
+command from the checkout:
+
+```sh
+git clone --branch tft-native-bridge-compat https://github.com/huynhdanhlang/waydroid.git tft-waydroid
+cd tft-waydroid
+bash patches/android16/setup.sh
+```
+
+The command requests sudo, installs the required Arch packages, downloads
+the exact [20260717 WayDroid-ATV GAPPS and MAINLINE images](https://github.com/WayDroid-ATV/waydroid-builds/releases/tag/20260717),
+verifies the release archives and extracted images by SHA-256, initializes
+Waydroid, applies this fork's Android 16 compatibility files, restarts the
+container, and opens the Android UI. A rerun verifies and reuses the images,
+configuration, and Android app data already on this PC. It refuses an
+unexpected Waydroid version, image, or existing profile. Run
+`bash patches/android16/setup.sh --check` for a read-only host preflight.
+
+Sign in to Google Play yourself and install apps from there. In Vietnam,
+search for **Đấu Trường Chân Lý** (`com.riotgames.league.teamfighttacticsvn`);
+after installing it, run `sudo tft-waydroid-resolution 2k` once for the
+verified 1440p setting. The app then appears in the desktop menu. The setup
+does not include game binaries or handle Google/Riot credentials. Other
+Android apps and games can be installed through Play, but individual titles
+may still fail because of architecture, graphics, DRM, anti-cheat, or region
+requirements; [Waydroid documents this compatibility boundary](https://docs.waydro.id/usage/install-and-run-android-applications).
+
+Requirements: x86_64 CachyOS/Arch, a Wayland session, a supported Mesa DRM
+render device, sudo, an internet connection for approximately 1.6 GB of
+release downloads, and enough free disk space for the images and games.
+Plan for at least 10 GB free if installing TFT and its downloaded assets.
+The fresh-machine download path is pinned to the same image hashes used by
+the tested machine; it has not yet been exercised end to end on another PC.
+
 ## Root causes and changes
 
 1. **Compositor and input faults.** The July image's `hwcomposer.waydroid.so` (Build ID
@@ -100,7 +142,7 @@ game's SurfaceView supplied 1280×720 pixels and was enlarged 3×. The in-game
 describes 1.0 as 720p on Android.
 
 TFT's APK reads `UECommandLine.txt` from its private app data. The following
-helper writes only that external command-line file, preserving the signed APK
+helper writes only that separate command-line file, preserving the signed APK
 and downloaded assets. It refuses to overwrite an unrelated command line.
 The setting persists across Waydroid restarts and takes effect when TFT is
 launched again:

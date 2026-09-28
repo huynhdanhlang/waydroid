@@ -21,6 +21,11 @@ on Android 13.
 
 See install instructions [here](https://docs.waydro.id/usage/install-on-desktops)
 
+For the tested CachyOS Android 16 and TFT setup in this fork, run
+`bash patches/android16/setup.sh` from the checkout. It also works on a fresh
+CachyOS x86_64 Wayland desktop. See the [one-command setup and compatibility
+notes](patches/android16/README.md#one-command-setup-on-cachyos).
+
 ## Documentation
 
 Our documentation can be found at [docs.waydro.id](https://docs.waydro.id)
