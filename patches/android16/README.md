@@ -34,7 +34,7 @@ unexpected Waydroid version, image, or existing profile. Run
 Sign in to Google Play yourself and install apps from there. In Vietnam,
 search for **Đấu Trường Chân Lý** (`com.riotgames.league.teamfighttacticsvn`);
 after installing it, run `sudo tft-waydroid-resolution 2k` once for the
-verified 1440p setting. The app then appears in the desktop menu. The setup
+near-1440p setting on a 4K Android display. The app then appears in the desktop menu. The setup
 does not include game binaries or handle Google/Riot credentials. Other
 Android apps and games can be installed through Play, but individual titles
 may still fail because of architecture, graphics, DRM, anti-cheat, or region
@@ -141,23 +141,27 @@ game's SurfaceView supplied 1280×720 pixels and was enlarged 3×. The in-game
 [mobile resolution documentation](https://dev.epicgames.com/documentation/unreal-engine/performance-guidelines-for-mobile-devices-in-unreal-engine)
 describes 1.0 as 720p on Android.
 
-TFT's APK reads `UECommandLine.txt` from its private app data. The following
-helper writes only that separate command-line file, preserving the signed APK
-and downloaded assets. It refuses to overwrite an unrelated command line.
-The setting persists across Waydroid restarts and takes effect when TFT is
-launched again:
+TFT's APK reads `UECommandLine.txt` from its private app data. On TFT 18.5,
+forcing 2560×1440 while the Android app still used a 3840×2160 coordinate
+space caused hover to hit the wrong UI element. The helper now applies
+Android's per-package 65% compatibility scale and requests 2496×1404, so the
+app's input and rendering dimensions match. This affects only the selected
+TFT package; the Android display and other apps remain at 4K. The helper
+preserves the signed APK and downloaded assets and refuses to overwrite an
+unrelated command line. Android must be running; changing compatibility
+settings can stop TFT. The setting persists and takes effect on app launch:
 
 ```sh
 sudo tft-waydroid-resolution 2k
 # Optional: 4k or stock in place of 2k, then restart only TFT.
 ```
 
-On this Intel UHD 770 host, SurfaceFlinger measured 2560×1440 rendering at
-approximately 60 FPS in the store and 3840×2160 at approximately 33 FPS
-during startup. These are different scenes, so they are a responsiveness
-check rather than a controlled benchmark. The 2K setting is the chosen
-balance for smoother input. The 4K setting remains available for later
-testing, but the helper does not change the resolution during installation.
+On this Intel UHD 770 host, SurfaceFlinger confirmed 2496×1404 output scaled
+to 3840×2160, and the user confirmed hover and clicks in the lobby. Item
+dragging in a match has not yet been verified. The 2k profile requires a
+3840×2160 physical Android display. `4k` and `stock` reset the compatibility
+overrides; neither profile has been validated on every TFT version. The helper
+does not change the resolution during installation.
 
 ## Reinstall on the same image
 
