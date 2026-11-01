@@ -153,7 +153,8 @@ settings can stop TFT. The setting persists and takes effect on app launch:
 
 ```sh
 sudo tft-waydroid-resolution 2k
-# Optional: 4k or stock in place of 2k, then restart only TFT.
+# For slightly lower GPU load, use 2k-smooth (2304×1296).
+# Optional: 4k or stock, then restart only TFT.
 ```
 
 On this Intel UHD 770 host, SurfaceFlinger confirmed 2496×1404 output scaled
@@ -162,6 +163,14 @@ dragging in a match has not yet been verified. The 2k profile requires a
 3840×2160 physical Android display. `4k` and `stock` reset the compatibility
 overrides; neither profile has been validated on every TFT version. The helper
 does not change the resolution during installation.
+
+The `2k-smooth` profile instead applies the per-package 60% scale and renders
+at 2304×1296. On this host the user reported smoother interaction and correct
+lobby clicks; match dragging remains unverified. A 4-second Intel GPU sample
+afterward was 48%, versus 93% in an earlier sample with 2496×1404, but those
+samples were taken at different times and do not establish a controlled
+performance comparison. Set the game's own FPS cap and battery saver in its
+graphics settings; the helper does not overwrite them.
 
 ## Reinstall on the same image
 
